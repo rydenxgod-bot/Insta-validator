@@ -1,43 +1,48 @@
-export default async function handler(req, res) {
-  const { username } = req.query;
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import httpx
 
-  if (!username) {
-    return res.status(200).json({
-      status: "info",
-      message: "👋 Welcome to the Instagram Username Validator API. To use it, add ?username=your_username in the URL.",
-      example: "/api?username=the_sword_70"
-    });
-  }
+app = FastAPI()
 
-  try {
-    const response = await fetch(`https://www.instagram.com/${username}/`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
-    });
+@app.get("/api")
+async def validate_username(request: Request):
+    username = request.query_params.get("username")
 
-    if (response.status === 200) {
-      return res.status(200).json({
-        status: "success",
-        message: `Username '${username}' is valid.`,
-        username
-      });
-    } else if (response.status === 404) {
-      return res.status(404).json({
-        status: "fail",
-        message: `Username '${username}' not found.`
-      });
-    } else {
-      return res.status(500).json({
-        status: "error",
-        message: "Unexpected error from Instagram."
-      });
-    }
-  } catch (e) {
-    return res.status(500).json({
-      status: "error",
-      message: "Failed to check username.",
-      error: e.message
-    });
-  }
-}
+    if not username:
+        return JSONResponse({
+            "status": "info",
+            "message": "👋 Welcome to the Instagram Username Validator API.",
+            "how_to_use": "Use ?username=your_username in the URL",
+            "example": "/api?username=the_sword_70"
+        })
+
+    url = f"https://www.instagram.com/{username}/"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+
+        if resp.status_code == 200:
+            return JSONResponse({
+                "status": "success",
+                "message": f"Username '{username}' is valid.",
+                "username": username
+            })
+        elif resp.status_code == 404:
+            return JSONResponse({
+                "status": "fail",
+                "message": f"Username '{username}' not found."
+            })
+        else:
+            return JSONResponse({
+                "status": "error",
+                "message": "Unexpected response from Instagram.",
+                "code": resp.status_code
+            })
+
+    except Exception as e:
+        return JSONResponse({
+            "status": "error",
+            "message": "Request failed.",
+            "error": str(e)
+        })
